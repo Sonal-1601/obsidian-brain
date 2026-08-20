@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Second Brain Visualizer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0e1014;
+        --panel: #14171d;
+        --panel-2: #1a1e26;
+        --border: #262b36;
+        --text: #e6e9ef;
+        --muted: #9aa3b2;
+        --accent: #7c5cff;
+        --file: #4f8df5;
+        --module: #a277ff;
+        --package: #f59e0b;
+        --concept: #22c55e;
+        --decision: #ef4444;
+        --session: #14b8a6;
+        --journal: #38bdf8;
+        --dashboard: #eab308;
+        --note: #94a3b8;
+        --phantom: #4b5563;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 ui-sans-serif, -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
+      }
+      #app { display: flex; height: 100%; }
+      #canvas-wrap { position: relative; flex: 1; min-width: 0; }
+      canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+      canvas.dragging { cursor: grabbing; }
+
+      aside {
+        width: 340px;
+        flex: none;
+        background: var(--panel);
+        border-left: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      aside header {
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      aside h1 {
+        margin: 0 0 2px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      aside .sub { color: var(--muted); font-size: 12px; word-break: break-all; }
+      .scroll { overflow-y: auto; padding: 14px 16px 24px; flex: 1; }
+
+      .field { margin-bottom: 14px; }
+      label.small {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      input[type="search"], input[type="text"], select {
+        width: 100%;
+        padding: 7px 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        color: var(--text);
+        font-size: 13px;
+        outline: none;
+      }
+      input[type="search"]:focus, select:focus { border-color: var(--accent); }
+      input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        font-size: 12px;
+        cursor: pointer;
+        user-select: none;
+        transition: opacity 0.12s;
+      }
+      .chip.off { opacity: 0.38; }
+      .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+      .chip .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+      .toggles { display: flex; flex-direction: column; gap: 8px; }
+      .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+      .toggle input { accent-color: var(--accent); }
+
+      .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      .stat b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+      .stat span { color: var(--muted); font-size: 11px; }
+
+      button {
+        width: 100%;
+        padding: 8px 12px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:hover { border-color: var(--accent); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+
+      hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+      #detail h2 { margin: 0 0 4px; font-size: 14px; }
+      #detail .path { font-size: 11px; color: var(--muted); word-break: break-all; margin-bottom: 10px; }
+      #detail .md {
+        font-size: 12.5px;
+        line-height: 1.6;
+        max-height: 320px;
+        overflow-y: auto;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      #detail .links { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+      #detail .links a { color: var(--file); text-decoration: none; font-size: 12px; cursor: pointer; }
+      #detail .links a:hover { text-decoration: underline; }
+      .empty { color: var(--muted); font-size: 13px; }
+
+      #hud {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        pointer-events: none;
+      }
+      .pill {
+        background: rgba(20, 23, 29, 0.9);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 5px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        backdrop-filter: blur(6px);
+      }
+      .pill.live b { color: var(--concept); }
+      #toast {
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--accent);
+        color: #fff;
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 0.25s, transform 0.25s;
+        pointer-events: none;
+      }
+      #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+      #tooltip {
+        position: absolute;
+        pointer-events: none;
+        background: rgba(20, 23, 29, 0.97);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 10px;
+        font-size: 12px;
+        max-width: 320px;
+        opacity: 0;
+        transition: opacity 0.1s;
+        z-index: 5;
+      }
+      #tooltip.show { opacity: 1; }
+      #tooltip .t-title { font-weight: 600; margin-bottom: 2px; }
+      #tooltip .t-meta { color: var(--muted); font-size: 11px; }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          color-scheme: light;
+          --bg: #f7f8fa;
+          --panel: #ffffff;
+          --panel-2: #f2f4f7;
+          --border: #dfe3ea;
+          --text: #1a1d23;
+          --muted: #667085;
+        }
+        .pill, #tooltip { background: rgba(255, 255, 255, 0.95); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="canvas-wrap">
+        <canvas id="graph"></canvas>
+        <div id="hud">
+          <div class="pill" id="pill-count">loading…</div>
+          <div class="pill live" id="pill-live"><b>●</b> live</div>
+        </div>
+        <div id="tooltip"></div>
+        <div id="toast"></div>
+      </div>
+
+      <aside>
+        <header>
+          <h1 id="project">Second Brain</h1>
+          <div class="sub" id="vault-path"></div>
+        </header>
+        <div class="scroll">
+          <div class="field">
+            <label class="small" for="search">Search</label>
+            <input id="search" type="search" placeholder="Filter notes…" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label class="small">Node types</label>
+            <div class="chips" id="kind-chips"></div>
+          </div>
+
+          <div class="field">
+            <label class="small">Display</label>
+            <div class="toggles">
+              <label class="toggle"><input type="checkbox" id="t-labels" checked /> Show labels</label>
+              <label class="toggle"><input type="checkbox" id="t-orphans" checked /> Show unlinked notes</label>
+              <label class="toggle"><input type="checkbox" id="t-phantoms" /> Show missing link targets</label>
+              <label class="toggle"><input type="checkbox" id="t-arrows" /> Show link direction</label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="small" for="link-dist">Link distance <span id="link-dist-val">60</span></label>
+            <input type="range" id="link-dist" min="20" max="200" value="60" />
+          </div>
+          <div class="field">
+            <label class="small" for="repel">Repulsion <span id="repel-val">220</span></label>
+            <input type="range" id="repel" min="40" max="900" value="220" />
+          </div>
+
+          <button id="btn-sync" class="primary">Sync codebase now</button>
+          <div style="height: 8px"></div>
+          <button id="btn-reset">Reset view</button>
+
+          <hr />
+          <label class="small">Vault</label>
+          <div class="stats" id="stats"></div>
+
+          <hr />
+          <div id="detail"><div class="empty">Click a node to inspect the note.</div></div>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      "use strict";
+
+      // ---------------------------------------------------------------------
+      // Constants and state
+      // ---------------------------------------------------------------------
+
+      const KIND_COLORS = {
+        file: "#4f8df5",
+        module: "#a277ff",
+        package: "#f59e0b",
+        concept: "#22c55e",
+        decision: "#ef4444",
+        session: "#14b8a6",
+        journal: "#38bdf8",
+        dashboard: "#eab308",
+        note: "#94a3b8",
+        orphaned: "#f97316",
+        phantom: "#4b5563",
+      };
+      const KIND_LABELS = {
+        file: "Files",
+        module: "Modules",
+        package: "Packages",
+        concept: "Concepts",
+        decision: "Decisions",
+        session: "Sessions",
+        journal: "Journal",
+        dashboard: "Dashboard",
+        note: "Notes",
+        orphaned: "Orphaned",
+        phantom: "Missing",
+      };
+
+      const canvas = document.getElementById("graph");
+      const dpr = () => window.devicePixelRatio || 1;
+      const gl = canvas.getContext("2d");
+
+      /** @type {{nodes: any[], edges: any[], metrics: any}} */
+      let graph = { nodes: [], edges: [], metrics: {} };
+      /** Simulation bodies keyed by note id, so positions survive a reload. */
+      const bodies = new Map();
+      let adjacency = new Map();
+
+      const view = { x: 0, y: 0, scale: 1 };
+      const hiddenKinds = new Set(["phantom"]);
+      let showLabels = true;
+      let showOrphans = true;
+      let showPhantoms = false;
+      let showArrows = false;
+      let linkDistance = 60;
+      let repulsion = 220;
+
+      let searchTerm = "";
+      let selectedId = null;
+      let hoverId = null;
+      let alpha = 1;
+
+      // ---------------------------------------------------------------------
+      // Layout: Barnes-Hut quadtree so repulsion stays O(n log n)
+      // ---------------------------------------------------------------------
+
+      function buildQuadtree(nodes) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of nodes) {
+          if (n.x < minX) minX = n.x;
+          if (n.y < minY) minY = n.y;
+          if (n.x > maxX) maxX = n.x;
+          if (n.y > maxY) maxY = n.y;
+        }
+        if (!isFinite(minX)) return null;
+        const size = Math.max(maxX - minX, maxY - minY, 1) + 1;
+        const root = { cx: minX, cy: minY, size, mass: 0, mx: 0, my: 0, body: null, kids: null };
+
+        const insert = (node, body, depth) => {
+          node.mass += 1;
+          node.mx += body.x;
+          node.my += body.y;
+          if (depth > 24) return;
+
+          if (!node.kids && !node.body) {
+            node.body = body;
+            return;
+          }
+          if (!node.kids) {
+            const existing = node.body;
+            node.body = null;
+            node.kids = subdivide(node);
+            place(node, existing, depth);
+          }
+          place(node, body, depth);
+        };
+
+        const subdivide = (node) => {
+          const h = node.size / 2;
+          return [
+            { cx: node.cx, cy: node.cy, size: h, mass: 0, mx: 0, my: 0, body: null, kids: null },
+            { cx: node.cx + h, cy: node.cy, size: h, mass: 0, mx: 0, my: 0, body: null, kids: null },
+            { cx: node.cx, cy: node.cy + h, size: h, mass: 0, mx: 0, my: 0, body: null, kids: null },
+            { cx: node.cx + h, cy: node.cy + h, size: h, mass: 0, mx: 0, my: 0, body: null, kids: null },
+          ];
+        };
+
+        const place = (node, body, depth) => {
+          const h = node.size / 2;
+          const right = body.x >= node.cx + h ? 1 : 0;
+          const bottom = body.y >= node.cy + h ? 1 : 0;
+          insert(node.kids[bottom * 2 + right], body, depth + 1);
+        };
+
+        for (const body of nodes) insert(root, body, 0);
+        return root;
+      }
+
+      function applyRepulsion(node, tree, theta) {
+        if (!tree || tree.mass === 0) return;
+        if (tree.body && tree.body !== node) {
+          pushApart(node, tree.body.x, tree.body.y, 1);
+          return;
+        }
+        if (!tree.kids) return;
+
+        const comX = tree.mx / tree.mass;
+        const comY = tree.my / tree.mass;
+        const dx = comX - node.x;
+        const dy = comY - node.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+
+        if (tree.size / dist < theta) {
+          pushApart(node, comX, comY, tree.mass);
+          return;
+        }
+        for (const kid of tree.kids) applyRepulsion(node, kid, theta);
+      }
+
+      function pushApart(node, x, y, mass) {
+        let dx = node.x - x;
+        let dy = node.y - y;
+        let d2 = dx * dx + dy * dy;
+        if (d2 < 0.01) {
+          // Perfectly coincident nodes need a deterministic nudge to separate.
+          dx = (node.seed % 17) / 17 - 0.5;
+          dy = (node.seed % 23) / 23 - 0.5;
+          d2 = 0.01;
+        }
+        const force = (repulsion * mass) / d2;
+        const dist = Math.sqrt(d2);
+        node.vx += (dx / dist) * force;
+        node.vy += (dy / dist) * force;
+      }
+
+      function tick() {
+        const nodes = visibleBodies();
+        if (nodes.length === 0) return;
+
+        const tree = buildQuadtree(nodes);
+        for (const node of nodes) {
+          if (node.fixed) continue;
+          applyRepulsion(node, tree, 0.9);
+          // Gentle pull to the origin keeps disconnected components on screen.
+          node.vx -= node.x * 0.004;
+          node.vy -= node.y * 0.004;
+        }
+
+        for (const edge of graph.edges) {
+          const a = bodies.get(edge.source);
+          const b = bodies.get(edge.target);
+          if (!a || !b || !a.visible || !b.visible) continue;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+          const force = (dist - linkDistance) * 0.035;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          if (!a.fixed) { a.vx += fx; a.vy += fy; }
+          if (!b.fixed) { b.vx -= fx; b.vy -= fy; }
+        }
+
+        const damping = 0.82;
+        for (const node of nodes) {
+          if (node.fixed) { node.vx = 0; node.vy = 0; continue; }
+          node.vx *= damping;
+          node.vy *= damping;
+          const speed = Math.hypot(node.vx, node.vy);
+          const cap = 12;
+          if (speed > cap) {
+            node.vx = (node.vx / speed) * cap;
+            node.vy = (node.vy / speed) * cap;
+          }
+          node.x += node.vx * alpha;
+          node.y += node.vy * alpha;
+        }
+        alpha = Math.max(0.02, alpha * 0.994);
+      }
+
+      function reheat(value) {
+        alpha = Math.max(alpha, value === undefined ? 0.8 : value);
+      }
+
+      // ---------------------------------------------------------------------
+      // Data plumbing
+      // ---------------------------------------------------------------------
+
+      function nodeRadius(node) {
+        const importance = (graph.metrics.pagerank && graph.metrics.pagerank[node.id]) || 0;
+        const degree = node.inDegree + node.outDegree;
+        return 3.2 + Math.sqrt(degree) * 1.5 + importance * 7;
+      }
+
+      function isVisible(node) {
+        if (hiddenKinds.has(node.kind)) return false;
+        if (node.phantom && !showPhantoms) return false;
+        if (!showOrphans && node.inDegree === 0 && node.outDegree === 0) return false;
+        return true;
+      }
+
+      function matchesSearch(node) {
+        if (!searchTerm) return true;
+        const t = searchTerm.toLowerCase();
+        return (
+          node.label.toLowerCase().includes(t) ||
+          node.id.toLowerCase().includes(t) ||
+          (node.sourcePath || "").toLowerCase().includes(t) ||
+          node.tags.some((tag) => tag.toLowerCase().includes(t))
+        );
+      }
+
+      function visibleBodies() {
+        const out = [];
+        for (const node of graph.nodes) {
+          const body = bodies.get(node.id);
+          if (body && body.visible) out.push(body);
+        }
+        return out;
+      }
+
+      function syncBodies() {
+        const seen = new Set();
+        let index = 0;
+        for (const node of graph.nodes) {
+          seen.add(node.id);
+          let body = bodies.get(node.id);
+          if (!body) {
+            // Seed new nodes on a spiral: deterministic, and avoids the
+            // everything-starts-at-the-origin explosion.
+            const angle = index * 2.399;
+            const radius = 30 + Math.sqrt(index + 1) * 26;
+            body = {
+              id: node.id,
+              x: Math.cos(angle) * radius,
+              y: Math.sin(angle) * radius,
+              vx: 0,
+              vy: 0,
+              fixed: false,
+              seed: index + 1,
+            };
+            bodies.set(node.id, body);
+          }
+          body.node = node;
+          body.visible = isVisible(node);
+          body.radius = nodeRadius(node);
+          index += 1;
+        }
+        for (const id of [...bodies.keys()]) {
+          if (!seen.has(id)) bodies.delete(id);
+        }
+
+        adjacency = new Map();
+        for (const edge of graph.edges) {
+          if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set());
+          if (!adjacency.has(edge.target)) adjacency.set(edge.target, new Set());
+          adjacency.get(edge.source).add(edge.target);
+          adjacency.get(edge.target).add(edge.source);
+        }
+      }
+
+      async function loadGraph(reheatAfter = true) {
+        const res = await fetch("/api/graph");
+        graph = await res.json();
+        syncBodies();
+        renderChips();
+        renderStats();
+        document.getElementById("project").textContent = graph.projectName || "Second Brain";
+        document.getElementById("vault-path").textContent = graph.vaultPath || "";
+        updateCountPill();
+        if (reheatAfter) reheat(0.9);
+      }
+
+      function updateCountPill() {
+        const visible = visibleBodies().length;
+        const edges = graph.edges.filter((e) => {
+          const a = bodies.get(e.source);
+          const b = bodies.get(e.target);
+          return a && b && a.visible && b.visible;
+        }).length;
+        document.getElementById("pill-count").textContent = visible + " notes · " + edges + " links";
+      }
+
+      // ---------------------------------------------------------------------
+      // Rendering
+      // ---------------------------------------------------------------------
+
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = Math.max(1, Math.floor(rect.width * dpr()));
+        canvas.height = Math.max(1, Math.floor(rect.height * dpr()));
+      }
+
+      function toScreen(x, y) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (x + view.x) * view.scale + rect.width / 2,
+          y: (y + view.y) * view.scale + rect.height / 2,
+        };
+      }
+
+      function toWorld(sx, sy) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (sx - rect.width / 2) / view.scale - view.x,
+          y: (sy - rect.height / 2) / view.scale - view.y,
+        };
+      }
+
+      function draw() {
+        const rect = canvas.getBoundingClientRect();
+        gl.setTransform(dpr(), 0, 0, dpr(), 0, 0);
+        gl.clearRect(0, 0, rect.width, rect.height);
+
+        const styles = getComputedStyle(document.documentElement);
+        const textColor = styles.getPropertyValue("--text").trim() || "#e6e9ef";
+        const mutedColor = styles.getPropertyValue("--muted").trim() || "#9aa3b2";
+
+        const neighbours = selectedId ? adjacency.get(selectedId) : null;
+        const dim = Boolean(searchTerm) || Boolean(selectedId);
+
+        // Edges first, so nodes always sit on top of them.
+        gl.lineWidth = Math.max(0.4, 0.8 * view.scale);
+        for (const edge of graph.edges) {
+          const a = bodies.get(edge.source);
+          const b = bodies.get(edge.target);
+          if (!a || !b || !a.visible || !b.visible) continue;
+
+          const touchesSelection =
+            selectedId && (edge.source === selectedId || edge.target === selectedId);
+          let opacity = 0.2;
+          if (touchesSelection) opacity = 0.85;
+          else if (dim) opacity = 0.06;
+
+          const p1 = toScreen(a.x, a.y);
+          const p2 = toScreen(b.x, b.y);
+          gl.strokeStyle = touchesSelection ? KIND_COLORS[a.node.kind] : mutedColor;
+          gl.globalAlpha = opacity;
+          gl.beginPath();
+          gl.moveTo(p1.x, p1.y);
+          gl.lineTo(p2.x, p2.y);
+          gl.stroke();
+
+          if (showArrows && view.scale > 0.6) {
+            drawArrow(p1, p2, b.radius * view.scale);
+          }
+        }
+        gl.globalAlpha = 1;
+
+        for (const node of graph.nodes) {
+          const body = bodies.get(node.id);
+          if (!body || !body.visible) continue;
+
+          const p = toScreen(body.x, body.y);
+          const r = Math.max(1.5, body.radius * view.scale);
+          if (p.x < -50 || p.y < -50 || p.x > rect.width + 50 || p.y > rect.height + 50) continue;
+
+          const isMatch = matchesSearch(node);
+          const isSelected = node.id === selectedId;
+          const isNeighbour = neighbours && neighbours.has(node.id);
+
+          let opacity = 1;
+          if (searchTerm && !isMatch) opacity = 0.12;
+          else if (selectedId && !isSelected && !isNeighbour) opacity = 0.22;
+
+          gl.globalAlpha = opacity;
+          gl.fillStyle = KIND_COLORS[node.kind] || KIND_COLORS.note;
+          gl.beginPath();
+          gl.arc(p.x, p.y, r, 0, Math.PI * 2);
+          gl.fill();
+
+          if (node.phantom) {
+            gl.globalAlpha = opacity * 0.9;
+            gl.strokeStyle = KIND_COLORS.phantom;
+            gl.lineWidth = 1;
+            gl.stroke();
+          }
+          if (isSelected || node.id === hoverId) {
+            gl.globalAlpha = 1;
+            gl.strokeStyle = textColor;
+            gl.lineWidth = 2;
+            gl.beginPath();
+            gl.arc(p.x, p.y, r + 3, 0, Math.PI * 2);
+            gl.stroke();
+          }
+
+          const labelWorthy =
+            showLabels &&
+            (isSelected ||
+              node.id === hoverId ||
+              (searchTerm && isMatch) ||
+              (view.scale > 0.85 && r > 4) ||
+              node.inDegree + node.outDegree > 6);
+
+          if (labelWorthy) {
+            gl.globalAlpha = opacity;
+            gl.fillStyle = isSelected ? textColor : mutedColor;
+            gl.font = (isSelected ? "600 " : "") + Math.min(13, Math.max(10, 11 * view.scale)) + "px ui-sans-serif, system-ui, sans-serif";
+            gl.textAlign = "center";
+            gl.textBaseline = "top";
+            const label = node.label.length > 34 ? node.label.slice(0, 33) + "…" : node.label;
+            gl.fillText(label, p.x, p.y + r + 3);
+          }
+        }
+        gl.globalAlpha = 1;
+      }
+
+      function drawArrow(p1, p2, targetRadius) {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const ux = dx / dist;
+        const uy = dy / dist;
+        const tipX = p2.x - ux * (targetRadius + 2);
+        const tipY = p2.y - uy * (targetRadius + 2);
+        const size = 4;
+        gl.beginPath();
+        gl.moveTo(tipX, tipY);
+        gl.lineTo(tipX - ux * size - uy * size * 0.6, tipY - uy * size + ux * size * 0.6);
+        gl.lineTo(tipX - ux * size + uy * size * 0.6, tipY - uy * size - ux * size * 0.6);
+        gl.closePath();
+        gl.fill();
+      }
+
+      function frame() {
+        tick();
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      // ---------------------------------------------------------------------
+      // Interaction
+      // ---------------------------------------------------------------------
+
+      function nodeAt(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const world = toWorld(clientX - rect.left, clientY - rect.top);
+        let best = null;
+        let bestDist = Infinity;
+        for (const node of graph.nodes) {
+          const body = bodies.get(node.id);
+          if (!body || !body.visible) continue;
+          const dx = body.x - world.x;
+          const dy = body.y - world.y;
+          const d = Math.hypot(dx, dy);
+          const hitRadius = Math.max(body.radius, 8 / view.scale);
+          if (d < hitRadius && d < bestDist) {
+            bestDist = d;
+            best = body;
+          }
+        }
+        return best;
+      }
+
+      let dragBody = null;
+      let panning = false;
+      let lastPointer = { x: 0, y: 0 };
+
+      canvas.addEventListener("pointerdown", (event) => {
+        canvas.setPointerCapture(event.pointerId);
+        lastPointer = { x: event.clientX, y: event.clientY };
+        const hit = nodeAt(event.clientX, event.clientY);
+        if (hit) {
+          dragBody = hit;
+          hit.fixed = true;
+          selectNode(hit.id);
+        } else {
+          panning = true;
+          canvas.classList.add("dragging");
+        }
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (dragBody) {
+          const rect = canvas.getBoundingClientRect();
+          const world = toWorld(event.clientX - rect.left, event.clientY - rect.top);
+          dragBody.x = world.x;
+          dragBody.y = world.y;
+          reheat(0.5);
+          return;
+        }
+        if (panning) {
+          view.x += (event.clientX - lastPointer.x) / view.scale;
+          view.y += (event.clientY - lastPointer.y) / view.scale;
+          lastPointer = { x: event.clientX, y: event.clientY };
+          return;
+        }
+        const hit = nodeAt(event.clientX, event.clientY);
+        hoverId = hit ? hit.id : null;
+        updateTooltip(hit, event);
+      });
+
+      const endPointer = () => {
+        if (dragBody) {
+          dragBody.fixed = false;
+          dragBody = null;
+        }
+        panning = false;
+        canvas.classList.remove("dragging");
+      };
+      canvas.addEventListener("pointerup", endPointer);
+      canvas.addEventListener("pointercancel", endPointer);
+      canvas.addEventListener("pointerleave", () => {
+        hoverId = null;
+        updateTooltip(null);
+      });
+
+      canvas.addEventListener(
+        "wheel",
+        (event) => {
+          event.preventDefault();
+          const rect = canvas.getBoundingClientRect();
+          const before = toWorld(event.clientX - rect.left, event.clientY - rect.top);
+          const factor = Math.exp(-event.deltaY * 0.0015);
+          view.scale = Math.min(6, Math.max(0.08, view.scale * factor));
+          const after = toWorld(event.clientX - rect.left, event.clientY - rect.top);
+          // Keep the point under the cursor anchored while zooming.
+          view.x += after.x - before.x;
+          view.y += after.y - before.y;
+        },
+        { passive: false },
+      );
+
+      const tooltip = document.getElementById("tooltip");
+      function updateTooltip(body, event) {
+        if (!body) {
+          tooltip.classList.remove("show");
+          return;
+        }
+        const node = body.node;
+        const meta = [];
+        meta.push(KIND_LABELS[node.kind] || node.kind);
+        if (node.lines) meta.push(node.lines + " lines");
+        meta.push(node.inDegree + " backlinks");
+        meta.push(node.outDegree + " links");
+        tooltip.innerHTML =
+          '<div class="t-title"></div><div class="t-meta"></div>';
+        tooltip.querySelector(".t-title").textContent = node.label;
+        tooltip.querySelector(".t-meta").textContent =
+          (node.sourcePath ? node.sourcePath + " · " : "") + meta.join(" · ");
+        const rect = canvas.getBoundingClientRect();
+        const p = toScreen(body.x, body.y);
+        tooltip.style.left = Math.min(rect.width - 330, p.x + 14) + "px";
+        tooltip.style.top = p.y + 14 + "px";
+        tooltip.classList.add("show");
+      }
+
+      // ---------------------------------------------------------------------
+      // Sidebar
+      // ---------------------------------------------------------------------
+
+      function renderChips() {
+        const counts = new Map();
+        for (const node of graph.nodes) {
+          counts.set(node.kind, (counts.get(node.kind) || 0) + 1);
+        }
+        const container = document.getElementById("kind-chips");
+        container.innerHTML = "";
+        const kinds = [...counts.keys()].sort(
+          (a, b) => (counts.get(b) || 0) - (counts.get(a) || 0),
+        );
+        for (const kind of kinds) {
+          const chip = document.createElement("div");
+          chip.className = "chip" + (hiddenKinds.has(kind) ? " off" : "");
+          const dot = document.createElement("span");
+          dot.className = "dot";
+          dot.style.background = KIND_COLORS[kind] || KIND_COLORS.note;
+          const label = document.createElement("span");
+          label.textContent = KIND_LABELS[kind] || kind;
+          const count = document.createElement("span");
+          count.className = "count";
+          count.textContent = String(counts.get(kind));
+          chip.append(dot, label, count);
+          chip.addEventListener("click", () => {
+            if (hiddenKinds.has(kind)) hiddenKinds.delete(kind);
+            else hiddenKinds.add(kind);
+            syncBodies();
+            renderChips();
+            updateCountPill();
+            reheat(0.4);
+          });
+          container.append(chip);
+        }
+      }
+
+      function renderStats() {
+        const m = graph.metrics || {};
+        const items = [
+          ["Notes", m.nodeCount || 0],
+          ["Links", m.edgeCount || 0],
+          ["Orphans", m.orphanCount || 0],
+          ["Clusters", m.componentCount || 0],
+        ];
+        const container = document.getElementById("stats");
+        container.innerHTML = "";
+        for (const [label, value] of items) {
+          const div = document.createElement("div");
+          div.className = "stat";
+          const b = document.createElement("b");
+          b.textContent = String(value);
+          const span = document.createElement("span");
+          span.textContent = label;
+          div.append(b, span);
+          container.append(div);
+        }
+      }
+
+      async function selectNode(id) {
+        selectedId = id;
+        const node = graph.nodes.find((n) => n.id === id);
+        const detail = document.getElementById("detail");
+        if (!node) {
+          detail.innerHTML = '<div class="empty">Click a node to inspect the note.</div>';
+          return;
+        }
+
+        detail.innerHTML = "";
+        const h2 = document.createElement("h2");
+        h2.textContent = node.label;
+        const pathDiv = document.createElement("div");
+        pathDiv.className = "path";
+        pathDiv.textContent = node.phantom
+          ? "This note does not exist yet — something links to it."
+          : node.id;
+        detail.append(h2, pathDiv);
+
+        if (!node.phantom) {
+          const body = document.createElement("div");
+          body.className = "md";
+          body.textContent = "Loading…";
+          detail.append(body);
+          try {
+            const res = await fetch("/api/note?id=" + encodeURIComponent(node.id));
+            if (res.ok) {
+              const note = await res.json();
+              body.textContent = note.content.replace(/<!-- sbv:(begin|end) -->/g, "").trim();
+              const open = document.createElement("button");
+              open.textContent = "Open in Obsidian";
+              open.style.marginTop = "10px";
+              open.addEventListener("click", () => {
+                window.location.href = note.obsidianUri;
+              });
+              detail.append(open);
+            } else {
+              body.textContent = "Could not load this note.";
+            }
+          } catch (error) {
+            body.textContent = "Could not load this note.";
+          }
+        }
+
+        const connected = [...(adjacency.get(node.id) || [])];
+        if (connected.length) {
+          const links = document.createElement("div");
+          links.className = "links";
+          const label = document.createElement("label");
+          label.className = "small";
+          label.textContent = "Connected (" + connected.length + ")";
+          links.append(label);
+          for (const otherId of connected.slice(0, 40)) {
+            const other = graph.nodes.find((n) => n.id === otherId);
+            if (!other) continue;
+            const a = document.createElement("a");
+            a.textContent = other.label;
+            a.addEventListener("click", () => {
+              selectNode(other.id);
+              focusNode(other.id);
+            });
+            links.append(a);
+          }
+          detail.append(links);
+        }
+      }
+
+      function focusNode(id) {
+        const body = bodies.get(id);
+        if (!body) return;
+        view.x = -body.x;
+        view.y = -body.y;
+        view.scale = Math.max(view.scale, 1.1);
+      }
+
+      function toast(message) {
+        const el = document.getElementById("toast");
+        el.textContent = message;
+        el.classList.add("show");
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => el.classList.remove("show"), 2600);
+      }
+
+      // ---------------------------------------------------------------------
+      // Controls
+      // ---------------------------------------------------------------------
+
+      document.getElementById("search").addEventListener("input", (event) => {
+        searchTerm = event.target.value.trim();
+      });
+      document.getElementById("t-labels").addEventListener("change", (e) => {
+        showLabels = e.target.checked;
+      });
+      document.getElementById("t-orphans").addEventListener("change", (e) => {
+        showOrphans = e.target.checked;
+        syncBodies();
+        updateCountPill();
+        reheat(0.4);
+      });
+      document.getElementById("t-phantoms").addEventListener("change", (e) => {
+        showPhantoms = e.target.checked;
+        if (showPhantoms) hiddenKinds.delete("phantom");
+        else hiddenKinds.add("phantom");
+        syncBodies();
+        renderChips();
+        updateCountPill();
+        reheat(0.4);
+      });
+      document.getElementById("t-arrows").addEventListener("change", (e) => {
+        showArrows = e.target.checked;
+      });
+      document.getElementById("link-dist").addEventListener("input", (e) => {
+        linkDistance = Number(e.target.value);
+        document.getElementById("link-dist-val").textContent = e.target.value;
+        reheat(0.5);
+      });
+      document.getElementById("repel").addEventListener("input", (e) => {
+        repulsion = Number(e.target.value);
+        document.getElementById("repel-val").textContent = e.target.value;
+        reheat(0.5);
+      });
+      document.getElementById("btn-reset").addEventListener("click", () => {
+        view.x = 0;
+        view.y = 0;
+        view.scale = 1;
+        selectedId = null;
+        selectNode(null);
+        reheat(0.7);
+      });
+      document.getElementById("btn-sync").addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.textContent = "Syncing…";
+        try {
+          const res = await fetch("/api/sync", { method: "POST" });
+          const result = await res.json();
+          toast(
+            "Synced: " + result.counts.created + " new, " + result.counts.updated + " updated",
+          );
+          await loadGraph(false);
+          reheat(0.5);
+        } catch (error) {
+          toast("Sync failed");
+        } finally {
+          button.disabled = false;
+          button.textContent = "Sync codebase now";
+        }
+      });
+
+      window.addEventListener("resize", resize);
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          selectedId = null;
+          selectNode(null);
+        }
+        if (event.key === "/" && document.activeElement !== document.getElementById("search")) {
+          event.preventDefault();
+          document.getElementById("search").focus();
+        }
+      });
+
+      // ---------------------------------------------------------------------
+      // Live updates
+      // ---------------------------------------------------------------------
+
+      function connectEvents() {
+        const source = new EventSource("/api/events");
+        const pill = document.getElementById("pill-live");
+        source.addEventListener("open", () => {
+          pill.style.display = "";
+        });
+        source.addEventListener("sync", async (event) => {
+          const data = JSON.parse(event.data);
+          await loadGraph(false);
+          reheat(0.35);
+          const changed = data.created + data.updated + data.deleted;
+          if (changed > 0) toast("Vault updated · " + changed + " note(s)");
+        });
+        source.addEventListener("error", () => {
+          // EventSource retries on its own; the pill reflects the outage.
+          pill.style.opacity = "0.4";
+          setTimeout(() => {
+            pill.style.opacity = "";
+          }, 3000);
+        });
+      }
+
+      resize();
+      loadGraph().then(() => {
+        connectEvents();
+        requestAnimationFrame(frame);
+      });
+    </script>
+  </body>
+</html>

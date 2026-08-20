@@ -1,0 +1,6 @@
+node_modules/
+dist/
+vault/
+.sbv/
+*.log
+.DS_Store

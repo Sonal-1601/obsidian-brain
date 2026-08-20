@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "second-brain": {
+      "command": "/opt/homebrew/Cellar/node/25.8.2/bin/node",
+      "args": [
+        "/Users/sonal.pandeyenpointe.io/Documents/sonal-devD/obsidian-mcp-connector/second-brain-visualizer/dist/cli.js",
+        "mcp"
+      ],
+      "env": {
+        "SBV_PROJECT_DIR": "/Users/sonal.pandeyenpointe.io/Documents/sonal-devD/obsidian-mcp-connector/second-brain-visualizer",
+        "SBV_VAULT_PATH": "/Users/sonal.pandeyenpointe.io/Documents/sonal-devD/obsidian-mcp-connector/second-brain-visualizer/vault"
+      }
+    }
+  }
+}

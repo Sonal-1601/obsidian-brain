@@ -1,0 +1,35 @@
+{
+  "name": "second-brain-visualizer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Obsidian connector: mirrors this codebase into an Obsidian vault as a live, linked knowledge graph, with an MCP server and a built-in graph visualizer.",
+  "type": "module",
+  "bin": {
+    "sbv": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "dev": "tsc -w -p tsconfig.json",
+    "sbv": "node dist/cli.js",
+    "init": "npm run build && node dist/cli.js init",
+    "sync": "node dist/cli.js sync",
+    "watch": "node dist/cli.js watch",
+    "serve": "node dist/cli.js serve",
+    "mcp": "node dist/cli.js mcp",
+    "doctor": "node dist/cli.js doctor",
+    "test": "node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "chokidar": "^4.0.3",
+    "yaml": "^2.9.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
+  }
+}

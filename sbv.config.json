@@ -1,0 +1,83 @@
+{
+  "projectName": "second-brain-visualizer",
+  "source": {
+    "root": ".",
+    "exclude": [],
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".mts",
+      ".cts",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".py",
+      ".rb",
+      ".go",
+      ".rs",
+      ".java",
+      ".kt",
+      ".swift",
+      ".php",
+      ".c",
+      ".h",
+      ".cc",
+      ".cpp",
+      ".hpp",
+      ".cs",
+      ".scala",
+      ".ex",
+      ".exs",
+      ".sh",
+      ".bash",
+      ".zsh",
+      ".sql",
+      ".graphql",
+      ".proto",
+      ".css",
+      ".scss",
+      ".sass",
+      ".less",
+      ".vue",
+      ".svelte",
+      ".astro",
+      ".json",
+      ".yaml",
+      ".yml",
+      ".toml",
+      ".md",
+      ".mdx",
+      ".txt"
+    ],
+    "maxFileSizeKb": 512,
+    "respectGitignore": true,
+    "includeDotfiles": false
+  },
+  "vault": {
+    "path": "./vault",
+    "manageObsidianConfig": true,
+    "sessionsFolder": "Sessions",
+    "conceptsFolder": "Concepts",
+    "decisionsFolder": "Decisions",
+    "journalFolder": "Journal",
+    "metaFolder": "_Meta"
+  },
+  "mirror": {
+    "folder": "Codebase",
+    "emitModules": true,
+    "emitPackages": true,
+    "emitSymbols": true,
+    "excerptLines": 0,
+    "pruneOrphans": true
+  },
+  "server": {
+    "port": 4141,
+    "host": "127.0.0.1",
+    "open": false
+  },
+  "watch": {
+    "debounceMs": 400,
+    "journal": true
+  }
+}
